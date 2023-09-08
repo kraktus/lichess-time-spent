@@ -168,7 +168,6 @@ impl Game {
     }
 
     fn game_duration(self) -> (Usernames, Duration) {
-        dbg!(&self);
         // base time - finish time + increment * nb_plies
         (
             self.usernames,
