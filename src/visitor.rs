@@ -155,8 +155,10 @@ impl Game {
     fn acc_comment(&mut self, comment: String) {
         // first if there's still room we add to the first two clocks
         if !self.first_two_clocks.is_full() {
-            self.first_two_clocks
-                .push(comment_to_duration(&comment).unwrap_or_else(|| panic!("could not read comment {comment:?}")));
+            self.first_two_clocks.push(
+                comment_to_duration(&comment)
+                    .unwrap_or_else(|| panic!("could not read comment {comment:?}")),
+            );
         }
         // if the last two_clock is full, we need to displace the sliding-window
         if let Err(e) = self.last_two_comments.try_push(comment) {
@@ -273,8 +275,6 @@ mod tests {
         )
     }
 
-    
-
     #[test]
     fn test_comment_to_duration2() {
         assert_eq!(
@@ -285,6 +285,19 @@ mod tests {
     #[test]
     fn test_tc_to_duration() {
         assert_eq!(tc_to_tuple("60+3"), Some(Tc::new((60, 3))))
+    }
+
+    #[test]
+    fn game_duration_calculation() {
+        let mut g = Game::default();
+        g.first_two_clocks.push(Duration::from_secs(60));
+        g.first_two_clocks.push(Duration::from_secs(60));
+        g.last_two_comments.push("[%clk 0:01:00]".to_string());
+        g.last_two_comments.push("[%clk 0:01:00]".to_string());
+        g.tc = Tc::new((60, 2));
+        g.plies = 2;
+        let (_, d) = g.game_duration();
+        assert_eq!(d, Duration::from_secs(4))
     }
 
     #[test]
