@@ -188,13 +188,14 @@ fn tc_to_tuple(tc: &str) -> Option<Tc> {
 
 fn comment_to_duration(comment: &str) -> Option<Duration> {
     let (_, clock_str) = comment.split_once("[%clk ")?;
-    let (h_str, m_str, s_str) = clock_str
+    let (h_str, m_str, s_str_with_rest) = clock_str
         .split_once(":")
         .and_then(|(h, m_and_s)| m_and_s.split_once(":").map(|(m, s)| (h, m, s)))?;
+    let s_str = s_str_with_rest.split_once("]").map(|x| x.0)?;
     let (h, m, s): (u64, u64, u64) = (
         h_str.parse().ok()?,
         m_str.parse().ok()?,
-        s_str[..s_str.len() - 1].parse().ok()?,
+        s_str.parse().ok()?,
     );
     Some(Duration::from_secs(h * 3600 + m * 60 + s))
 }
@@ -268,6 +269,16 @@ mod tests {
         assert_eq!(
             comment_to_duration("[%clk 0:00:01]"),
             Some(Duration::from_secs(1))
+        )
+    }
+
+    
+
+    #[test]
+    fn test_comment_to_duration2() {
+        assert_eq!(
+            comment_to_duration(" [%clk 0:03:00] "),
+            Some(Duration::from_secs(180))
         )
     }
     #[test]
