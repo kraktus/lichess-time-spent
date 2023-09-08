@@ -157,13 +157,17 @@ impl Game {
         // first if there's still room we add to the first two clocks
         if !self.first_two_clocks.is_full() {
             self.first_two_clocks.push(
-                comment_to_duration(&comment)
-                    .unwrap_or_else(|| panic!("could not read comment {comment:?} for game {self:?}")),
+                comment_to_duration(&comment).unwrap_or_else(|| {
+                    panic!("could not read comment {comment:?} for game {self:?}")
+                }),
             );
         }
         // if the last two_clock is full, we need to displace the sliding-window
         if let Err(e) = self.last_two_comments.try_push(comment) {
-            self.last_two_comments[0] = self.last_two_comments.pop().expect("last comment empty, game {self:?}");
+            self.last_two_comments[0] = self
+                .last_two_comments
+                .pop()
+                .expect("last comment empty, game {self:?}");
             self.last_two_comments.push(e.element())
         }
     }
@@ -177,8 +181,9 @@ impl Game {
                     .last_two_comments
                     .into_iter()
                     .map(|x| {
-                        comment_to_duration(&x)
-                            .unwrap_or_else(|| panic!("could not read comment {x:?}, game: {self:?}"))
+                        comment_to_duration(&x).unwrap_or_else(|| {
+                            panic!("could not read comment {x:?}, game: {:?}", self.link)
+                        })
                     })
                     .sum()
                 + Duration::from_secs(self.plies * self.tc.increment),
