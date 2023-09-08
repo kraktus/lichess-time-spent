@@ -225,19 +225,19 @@ impl Visitor for PgnVisitor {
         if key == b"White" || key == b"Black" {
             let username = value
                 .decode_utf8()
-                .unwrap_or_else(|e| panic!("Error {} decoding username at game: {}", e, self.games))
+                .unwrap_or_else(|e| panic!("Error {} decoding username at game: {:?}", e, self.game))
                 .to_string();
             self.game.usernames.push(username)
         } else if key == b"TimeControl" {
             let tc = value
                 .decode_utf8()
-                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {}", e, self.games));
+                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {:?}", e, self.game));
             self.game.tc = tc_to_tuple(&tc)
-                .unwrap_or_else(|| panic!("could not convert tc {tc:?} at game {}", self.games))
+                .unwrap_or_else(|| panic!("could not convert tc {tc:?} at game {:?}", self.game))
         } else if key == b"Site" {
             self.game.link = value
                 .decode_utf8()
-                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {}", e, self.games))
+                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {:?}", e, self.game))
                 .to_string();
         }
     }
