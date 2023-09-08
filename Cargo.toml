@@ -1,0 +1,18 @@
+[package]
+edition = "2021"
+name = "username-time-spent"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+arrayvec = "0.7.4"
+bzip2 = "0.4"
+flate2 = "1.0"
+indicatif = "0.17"
+lz4 = "1.23"
+pgn-reader = "0.25" # should be kept in sync with shakmaty
+rustc-hash = "1"
+shakmaty = "0.26"
+xz2 = "0.1"
+zstd = "0.12"
