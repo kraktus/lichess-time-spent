@@ -176,7 +176,6 @@ impl Game {
     // then the game is skipped
     fn game_duration(self) -> (Usernames, Option<Duration>) {
         // base time - finish time + increment * nb_plies
-        dbg!(&self);
         (
             self.usernames,
             (self.first_two_clocks.into_iter().sum::<Duration>()
