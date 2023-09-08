@@ -172,22 +172,25 @@ impl Game {
         }
     }
 
-    fn game_duration(self) -> (Usernames, Duration) {
+    // The use of the +15s button can break the game duration calculation
+    // then the game is skipped
+    fn game_duration(self) -> (Usernames, Option<Duration>) {
         // base time - finish time + increment * nb_plies
         dbg!(&self);
         (
             self.usernames,
-            self.first_two_clocks.into_iter().sum::<Duration>()
-            + Duration::from_secs(self.plies * self.tc.increment)
-                - self
-                    .last_two_comments
+            (self.first_two_clocks.into_iter().sum::<Duration>()
+                + Duration::from_secs(self.plies * self.tc.increment))
+            .checked_sub(
+                self.last_two_comments
                     .into_iter()
                     .map(|x| {
                         comment_to_duration(&x).unwrap_or_else(|| {
                             panic!("could not read comment {x:?}, game: {:?}", self.link)
                         })
                     })
-                    .sum()
+                    .sum(),
+            ),
         )
     }
 }
@@ -266,13 +269,15 @@ impl Visitor for PgnVisitor {
     fn end_game(&mut self) -> Self::Result {
         let finished_game = mem::take(&mut self.game);
         let avg_time = finished_game.tc.average_time();
-        let (usernames, exact_duration) = finished_game.game_duration();
-        for username in usernames.into_iter() {
-            let mut time_spents = self
-                .users
-                .remove(&username)
-                .unwrap_or_else(TimeSpents::default);
-            time_spents.add_game(exact_duration, avg_time)
+        let (usernames, exact_duration_opt) = finished_game.game_duration();
+        if let Some(exact_duration) = exact_duration_opt {
+            for username in usernames.into_iter() {
+                let mut time_spents = self
+                    .users
+                    .remove(&username)
+                    .unwrap_or_else(TimeSpents::default);
+                time_spents.add_game(exact_duration, avg_time)
+            }
         }
     }
 }
