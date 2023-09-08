@@ -143,6 +143,7 @@ impl Tc {
 struct Game {
     usernames: Usernames,
     plies: u64,
+    link: String, // for debugging purpose
     // needed in case of berserk
     first_two_clocks: ArrayVec<Duration, 2>,
     // sliding of the last two clock
@@ -157,12 +158,12 @@ impl Game {
         if !self.first_two_clocks.is_full() {
             self.first_two_clocks.push(
                 comment_to_duration(&comment)
-                    .unwrap_or_else(|| panic!("could not read comment {comment:?}")),
+                    .unwrap_or_else(|| panic!("could not read comment {comment:?} for game {self:?}")),
             );
         }
         // if the last two_clock is full, we need to displace the sliding-window
         if let Err(e) = self.last_two_comments.try_push(comment) {
-            self.last_two_comments[0] = self.last_two_comments.pop().expect("last comment empty");
+            self.last_two_comments[0] = self.last_two_comments.pop().expect("last comment empty, game {self:?}");
             self.last_two_comments.push(e.element())
         }
     }
@@ -177,7 +178,7 @@ impl Game {
                     .into_iter()
                     .map(|x| {
                         comment_to_duration(&x)
-                            .unwrap_or_else(|| panic!("could not read comment {x:?}"))
+                            .unwrap_or_else(|| panic!("could not read comment {x:?}, game: {self:?}"))
                     })
                     .sum()
                 + Duration::from_secs(self.plies * self.tc.increment),
@@ -226,7 +227,13 @@ impl Visitor for PgnVisitor {
             let tc = value
                 .decode_utf8()
                 .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {}", e, self.games));
-            self.game.tc = tc_to_tuple(&tc).unwrap_or_else(|| panic!("could not convert tc {tc:?}"))
+            self.game.tc = tc_to_tuple(&tc)
+                .unwrap_or_else(|| panic!("could not convert tc {tc:?} at game {}", self.games))
+        } else if key == b"Site" {
+            self.game.link = value
+                .decode_utf8()
+                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {}", e, self.games))
+                .to_string();
         }
     }
     fn san(&mut self, _: SanPlus) {
