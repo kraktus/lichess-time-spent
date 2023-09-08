@@ -167,7 +167,7 @@ impl Game {
 
     fn game_duration(self) -> (Usernames, Duration) {
         dbg!(&self);
-        // base time - finish time - increment * nb_plies
+        // base time - finish time + increment * nb_plies
         (
             self.usernames,
             self.first_two_clocks.into_iter().sum::<Duration>()
@@ -176,7 +176,7 @@ impl Game {
                     .into_iter()
                     .map(|x| comment_to_duration(&x).unwrap())
                     .sum()
-                - Duration::from_secs(self.plies * self.tc.increment),
+                + Duration::from_secs(self.plies * self.tc.increment),
         )
     }
 }
