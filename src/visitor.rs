@@ -1,4 +1,11 @@
-use std::{unimplemented, mem, ops::Add, time::Duration};
+use std::{
+    format,
+    io::{self, Write},
+    mem,
+    ops::Add,
+    time::Duration,
+    unimplemented,
+};
 
 use arrayvec::{ArrayString, ArrayVec};
 use indicatif::ProgressBar;
@@ -43,6 +50,17 @@ impl TimeSpent {
         self.time_spent_exact += game_exact_duration;
         self.time_spent_approximate += game_approximate_duration;
     }
+
+    fn to_csv(&self, w: &mut impl Write) -> io::Result<()> {
+        // nb_game, average, accurate
+        write!(
+            w,
+            "{},{},{}",
+            self.nb_games,
+            self.time_spent_approximate,
+            self.time_spent_exact.as_secs()
+        )
+    }
 }
 
 #[derive(Default, Debug)]
@@ -55,7 +73,7 @@ pub struct TimeSpents {
 }
 
 impl TimeSpents {
-     fn add_game(&mut self, game_exact_duration: Duration, avg_time: usize) {
+    fn add_game(&mut self, game_exact_duration: Duration, avg_time: usize) {
         // https://lichess.org/faq#time-controls
         if avg_time <= 29 {
             self.ultrabullet.add_game(game_exact_duration, avg_time)
@@ -68,7 +86,18 @@ impl TimeSpents {
         } else {
             self.classical.add_game(game_exact_duration, avg_time)
         }
+    }
 
+    fn to_csv(&self, w: &mut impl Write) -> io::Result<()> {
+        self.ultrabullet.to_csv(w)?;
+        write!(w, ",")?;
+        self.bullet.to_csv(w)?;
+        write!(w, ",")?;
+        self.blitz.to_csv(w)?;
+        write!(w, ",")?;
+        self.rapid.to_csv(w)?;
+        write!(w, ",")?;
+        self.classical.to_csv(w)
     }
 }
 
@@ -138,13 +167,16 @@ impl Game {
 
     fn game_duration(self) -> (Usernames, Duration) {
         // base time - finish time - increment * nb_plies
-        (self.usernames, self.first_two_clocks.into_iter().sum::<Duration>()
-            - self
-                .last_two_comments
-                .into_iter()
-                .map(|x| comment_to_duration(&x).unwrap())
-                .sum()
-            - Duration::from_secs(self.plies * self.tc.increment))
+        (
+            self.usernames,
+            self.first_two_clocks.into_iter().sum::<Duration>()
+                - self
+                    .last_two_comments
+                    .into_iter()
+                    .map(|x| comment_to_duration(&x).unwrap())
+                    .sum()
+                - Duration::from_secs(self.plies * self.tc.increment),
+        )
     }
 }
 
@@ -216,7 +248,10 @@ impl Visitor for PgnVisitor {
         let avg_time = finished_game.tc.average_time();
         let (usernames, exact_duration) = finished_game.game_duration();
         for username in usernames.into_iter() {
-            let mut time_spents = self.users.remove(&username).unwrap_or_else(TimeSpents::default);
+            let mut time_spents = self
+                .users
+                .remove(&username)
+                .unwrap_or_else(TimeSpents::default);
             time_spents.add_game(exact_duration, avg_time)
         }
     }
