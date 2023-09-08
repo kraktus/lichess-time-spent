@@ -178,6 +178,7 @@ impl Game {
         (
             self.usernames,
             self.first_two_clocks.into_iter().sum::<Duration>()
+            + Duration::from_secs(self.plies * self.tc.increment)
                 - self
                     .last_two_comments
                     .into_iter()
@@ -187,7 +188,6 @@ impl Game {
                         })
                     })
                     .sum()
-                + Duration::from_secs(self.plies * self.tc.increment),
         )
     }
 }
