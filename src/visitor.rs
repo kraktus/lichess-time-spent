@@ -259,7 +259,7 @@ impl Visitor for PgnVisitor {
     }
     fn end_headers(&mut self) -> Skip {
         // avoiding games without clocks
-        Skip(self.game.tc != Tc::default())
+        Skip(self.game.tc == Tc::default())
     }
 
     fn end_game(&mut self) -> Self::Result {
