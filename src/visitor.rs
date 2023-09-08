@@ -162,7 +162,7 @@ impl Game {
         }
         // if the last two_clock is full, we need to displace the sliding-window
         if let Err(e) = self.last_two_comments.try_push(comment) {
-            self.last_two_comments[0] = self.last_two_comments.pop().unwrap();
+            self.last_two_comments[0] = self.last_two_comments.pop().expect("last comment empty");
             self.last_two_comments.push(e.element())
         }
     }
@@ -175,7 +175,10 @@ impl Game {
                 - self
                     .last_two_comments
                     .into_iter()
-                    .map(|x| comment_to_duration(&x).unwrap())
+                    .map(|x| {
+                        comment_to_duration(&x)
+                            .unwrap_or_else(|| panic!("could not read comment {x:?}"))
+                    })
                     .sum()
                 + Duration::from_secs(self.plies * self.tc.increment),
         )
@@ -216,22 +219,14 @@ impl Visitor for PgnVisitor {
         if key == b"White" || key == b"Black" {
             let username = value
                 .decode_utf8()
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "{}",
-                        format!("Error {e} decoding username at game: {}", self.games)
-                    )
-                })
+                .unwrap_or_else(|e| panic!("Error {} decoding username at game: {}", e, self.games))
                 .to_string();
             self.game.usernames.push(username)
         } else if key == b"TimeControl" {
-            let tc = value.decode_utf8().unwrap_or_else(|e| {
-                panic!(
-                    "{}",
-                    format!("Error {e} decoding tc at game: {}", self.games)
-                )
-            });
-            self.game.tc = tc_to_tuple(&tc).unwrap()
+            let tc = value
+                .decode_utf8()
+                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {}", e, self.games));
+            self.game.tc = tc_to_tuple(&tc).unwrap_or_else(|| panic!("could not convert tc {tc:?}"))
         }
     }
     fn san(&mut self, _: SanPlus) {
