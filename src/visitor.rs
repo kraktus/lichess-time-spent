@@ -156,7 +156,7 @@ impl Game {
         // first if there's still room we add to the first two clocks
         if !self.first_two_clocks.is_full() {
             self.first_two_clocks
-                .push(comment_to_duration(&comment).unwrap());
+                .push(comment_to_duration(&comment).unwrap_or_else(|| panic!("could not read comment {comment:?}")));
         }
         // if the last two_clock is full, we need to displace the sliding-window
         if let Err(e) = self.last_two_comments.try_push(comment) {
