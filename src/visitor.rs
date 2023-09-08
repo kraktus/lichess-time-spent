@@ -31,6 +31,22 @@ pub struct PgnVisitor {
     acc: Acc, // storing temporary variable
 }
 
+struct Tc {
+    // in seconds
+    base: u64,
+    // in seconds
+    increment: u64,
+}
+
+impl Tc {
+    fn new(tc: (u64, u64)) -> Self {
+        Self {
+            base: tc.0,
+            increment: tc.1,
+        }
+    }
+}
+
 #[derive(Default)]
 struct Acc {
     usernames: ArrayVec<String, 2>,
@@ -40,7 +56,7 @@ struct Acc {
     // sliding of the last two clock
     last_two_comments: ArrayVec<String, 2>,
     // the initial time, in seconds, with the increment, in seconds
-    tc: (u64, u64),
+    tc: Tc,
 }
 
 impl Acc {
@@ -57,14 +73,21 @@ impl Acc {
         }
     }
 
-    fn game_duration(self) -> Option<Duration> {
-        unimplemented!()
+    fn game_duration(self) -> Duration {
+        self.first_two_clocks.into_iter().sum()
+            - self
+                .last_two_comments
+                .into_iter()
+                .map(|x| comment_to_duration(&x).unwrap())
+                .sum()
+            - Duration::from_secs(self.plies * self.tc.increment)
     }
 }
 
-fn tc_to_tuple(tc: &str) -> Option<(u64, u64)> {
+fn tc_to_tuple(tc: &str) -> Option<Tc> {
     tc.split_once("+")
         .and_then(|(base, increment)| base.parse().ok().zip(increment.parse().ok()))
+        .map(Tc::new)
 }
 
 fn comment_to_duration(comment: &str) -> Option<Duration> {
@@ -75,7 +98,7 @@ fn comment_to_duration(comment: &str) -> Option<Duration> {
     let (h, m, s): (u64, u64, u64) = (
         h_str.parse().ok()?,
         m_str.parse().ok()?,
-        s_str[..s_str.len()-1].parse().ok()?,
+        s_str[..s_str.len() - 1].parse().ok()?,
     );
     Some(Duration::from_secs(h * 3600 + m * 60 + s))
 }
@@ -115,14 +138,12 @@ impl Visitor for PgnVisitor {
                 .to_string();
             self.acc.usernames.push(username)
         } else if key == b"TimeControl" {
-            let tc = value
-                .decode_utf8()
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "{}",
-                        format!("Error {e} decoding tc at game: {}", self.games)
-                    )
-                });
+            let tc = value.decode_utf8().unwrap_or_else(|e| {
+                panic!(
+                    "{}",
+                    format!("Error {e} decoding tc at game: {}", self.games)
+                )
+            });
             self.acc.tc = tc_to_tuple(&tc).unwrap()
         }
     }
@@ -149,11 +170,14 @@ mod tests {
 
     #[test]
     fn test_comment_to_duration() {
-        assert_eq!(comment_to_duration("[%clk 0:00:01]"), Some(Duration::from_secs(1)))
+        assert_eq!(
+            comment_to_duration("[%clk 0:00:01]"),
+            Some(Duration::from_secs(1))
+        )
     }
     #[test]
     fn test_tc_to_duration() {
-        assert_eq!(tc_to_tuple("60+3"), Some((60,3)))
+        assert_eq!(tc_to_tuple("60+3"), Some((60, 3)))
     }
 
     #[test]
