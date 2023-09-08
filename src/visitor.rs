@@ -28,9 +28,10 @@ pub struct PgnVisitor {
     pub games: usize,
     pub usernames: FxHashMap<String, TimeSpents>,
     pb: ProgressBar,
-    acc: Acc, // storing temporary variable
+    game: Game, // storing temporary variable
 }
 
+#[derive(Default, Debug, PartialEq, Eq, Hash)]
 struct Tc {
     // in seconds
     base: u64,
@@ -47,8 +48,8 @@ impl Tc {
     }
 }
 
-#[derive(Default)]
-struct Acc {
+#[derive(Default, Debug)]
+struct Game {
     usernames: ArrayVec<String, 2>,
     plies: u64,
     // needed in case of berserk
@@ -59,7 +60,7 @@ struct Acc {
     tc: Tc,
 }
 
-impl Acc {
+impl Game {
     fn acc_comment(&mut self, comment: String) {
         // first if there's still room we add to the first two clocks
         if !self.first_two_clocks.is_full() {
@@ -74,7 +75,8 @@ impl Acc {
     }
 
     fn game_duration(self) -> Duration {
-        self.first_two_clocks.into_iter().sum()
+        // base time - finish time - increment * nb_plies
+        self.first_two_clocks.into_iter().sum::<Duration>()
             - self
                 .last_two_comments
                 .into_iter()
@@ -109,7 +111,7 @@ impl PgnVisitor {
             games: 0,
             pb,
             usernames: FxHashMap::default(),
-            acc: Acc::default(),
+            game: Game::default(),
         }
     }
 }
@@ -119,7 +121,6 @@ impl Visitor for PgnVisitor {
 
     fn begin_game(&mut self) {
         self.games += 1;
-        self.acc = Acc::default();
         if self.games % 10_000 == 9999 {
             self.pb.inc(10_000)
         }
@@ -136,7 +137,7 @@ impl Visitor for PgnVisitor {
                     )
                 })
                 .to_string();
-            self.acc.usernames.push(username)
+            self.game.usernames.push(username)
         } else if key == b"TimeControl" {
             let tc = value.decode_utf8().unwrap_or_else(|e| {
                 panic!(
@@ -144,22 +145,24 @@ impl Visitor for PgnVisitor {
                     format!("Error {e} decoding tc at game: {}", self.games)
                 )
             });
-            self.acc.tc = tc_to_tuple(&tc).unwrap()
+            self.game.tc = tc_to_tuple(&tc).unwrap()
         }
     }
     fn san(&mut self, _: SanPlus) {
-        self.acc.plies += 1;
+        self.game.plies += 1;
     }
 
     fn comment(&mut self, c: RawComment<'_>) {
-        self.acc
+        self.game
             .acc_comment(String::from_utf8_lossy(c.as_bytes()).to_string())
     }
     fn begin_variation(&mut self) -> Skip {
         Skip(true)
     }
 
-    fn end_game(&mut self) -> Self::Result {}
+    fn end_game(&mut self) -> Self::Result {
+
+    }
 }
 
 #[cfg(test)]
@@ -177,21 +180,21 @@ mod tests {
     }
     #[test]
     fn test_tc_to_duration() {
-        assert_eq!(tc_to_tuple("60+3"), Some((60, 3)))
+        assert_eq!(tc_to_tuple("60+3"), Some(Tc::new((60, 3))))
     }
 
     #[test]
     fn test_sliding_window_clock() {
-        let mut acc = Acc::default();
-        acc.acc_comment("[%clk 0:00:01]".to_string());
-        acc.acc_comment("[%clk 0:00:02]".to_string());
-        acc.acc_comment("[%clk 0:00:03]".to_string());
+        let mut game = Game::default();
+        game.acc_comment("[%clk 0:00:01]".to_string());
+        game.acc_comment("[%clk 0:00:02]".to_string());
+        game.acc_comment("[%clk 0:00:03]".to_string());
         assert_eq!(
-            acc.first_two_clocks.into_inner().unwrap(),
+            game.first_two_clocks.into_inner().unwrap(),
             [Duration::from_secs(1), Duration::from_secs(2)]
         );
         assert_eq!(
-            acc.last_two_comments.into_inner().unwrap(),
+            game.last_two_comments.into_inner().unwrap(),
             ["[%clk 0:00:02]".to_string(), "[%clk 0:00:03]".to_string()]
         );
     }
