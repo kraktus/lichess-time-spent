@@ -1,4 +1,4 @@
-use std::{time::Duration, unimplemented};
+use std::{unimplemented, mem, ops::Add, time::Duration};
 
 use arrayvec::{ArrayString, ArrayVec};
 use indicatif::ProgressBar;
@@ -8,30 +8,89 @@ use rustc_hash::FxHashMap;
 // Small string. capped by max username length, 30.
 //type SString = ArrayString<30>;
 
+// #[derive(Default, Debug, PartialEq, Eq, Hash)]
+// struct Duration(u64);
+
+// impl Duration {
+//     fn from_secs(x: u64) -> Self {
+//         Self(x)
+//     }
+// }
+
+// impl Add for Duration {
+//     type Output = Self;
+
+//     fn add(self, rhs: Self) -> Self::Output {
+//         Self(self.0 + rhs.0)
+//     }
+// }
+
+type Usernames = ArrayVec<String, 2>;
+
+#[derive(Default, Debug)]
 pub struct TimeSpent {
     pub nb_games: usize,
     /// in seconds
-    pub time_spent_exact: usize,
+    pub time_spent_exact: Duration,
     ///  in seconds
     /// computed with formula  (clock initial time in seconds) + 40 × (clock increment)
     pub time_spent_approximate: usize,
 }
 
+impl TimeSpent {
+    fn add_game(&mut self, game_exact_duration: Duration, game_approximate_duration: usize) {
+        self.nb_games += 1;
+        self.time_spent_exact += game_exact_duration;
+        self.time_spent_approximate += game_approximate_duration;
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct TimeSpents {
+    ultrabullet: TimeSpent,
     bullet: TimeSpent,
     blitz: TimeSpent,
     rapid: TimeSpent,
     classical: TimeSpent,
 }
 
+impl TimeSpents {
+     fn add_game(&mut self, game_exact_duration: Duration, avg_time: usize) {
+        // https://lichess.org/faq#time-controls
+        if avg_time <= 29 {
+            self.ultrabullet.add_game(game_exact_duration, avg_time)
+        } else if avg_time <= 179 {
+            self.bullet.add_game(game_exact_duration, avg_time)
+        } else if avg_time <= 479 {
+            self.blitz.add_game(game_exact_duration, avg_time)
+        } else if avg_time <= 1499 {
+            self.rapid.add_game(game_exact_duration, avg_time)
+        } else {
+            self.classical.add_game(game_exact_duration, avg_time)
+        }
+
+    }
+}
+
 pub struct PgnVisitor {
     pub games: usize,
-    pub usernames: FxHashMap<String, TimeSpents>,
+    pub users: FxHashMap<String, TimeSpents>,
     pb: ProgressBar,
     game: Game, // storing temporary variable
 }
 
-#[derive(Default, Debug, PartialEq, Eq, Hash)]
+impl PgnVisitor {
+    pub fn new(pb: ProgressBar) -> Self {
+        Self {
+            games: 0,
+            pb,
+            users: FxHashMap::default(),
+            game: Game::default(),
+        }
+    }
+}
+
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 struct Tc {
     // in seconds
     base: u64,
@@ -46,11 +105,14 @@ impl Tc {
             increment: tc.1,
         }
     }
+    fn average_time(&self) -> usize {
+        (self.base + 40 * self.increment) as usize
+    }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 struct Game {
-    usernames: ArrayVec<String, 2>,
+    usernames: Usernames,
     plies: u64,
     // needed in case of berserk
     first_two_clocks: ArrayVec<Duration, 2>,
@@ -74,15 +136,15 @@ impl Game {
         }
     }
 
-    fn game_duration(self) -> Duration {
+    fn game_duration(self) -> (Usernames, Duration) {
         // base time - finish time - increment * nb_plies
-        self.first_two_clocks.into_iter().sum::<Duration>()
+        (self.usernames, self.first_two_clocks.into_iter().sum::<Duration>()
             - self
                 .last_two_comments
                 .into_iter()
                 .map(|x| comment_to_duration(&x).unwrap())
                 .sum()
-            - Duration::from_secs(self.plies * self.tc.increment)
+            - Duration::from_secs(self.plies * self.tc.increment))
     }
 }
 
@@ -103,17 +165,6 @@ fn comment_to_duration(comment: &str) -> Option<Duration> {
         s_str[..s_str.len() - 1].parse().ok()?,
     );
     Some(Duration::from_secs(h * 3600 + m * 60 + s))
-}
-
-impl PgnVisitor {
-    pub fn new(pb: ProgressBar) -> Self {
-        Self {
-            games: 0,
-            pb,
-            usernames: FxHashMap::default(),
-            game: Game::default(),
-        }
-    }
 }
 
 impl Visitor for PgnVisitor {
@@ -161,7 +212,13 @@ impl Visitor for PgnVisitor {
     }
 
     fn end_game(&mut self) -> Self::Result {
-
+        let finished_game = mem::take(&mut self.game);
+        let avg_time = finished_game.tc.average_time();
+        let (usernames, exact_duration) = finished_game.game_duration();
+        for username in usernames.into_iter() {
+            let mut time_spents = self.users.remove(&username).unwrap_or_else(TimeSpents::default);
+            time_spents.add_game(exact_duration, avg_time)
+        }
     }
 }
 
