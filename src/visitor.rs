@@ -14,7 +14,6 @@ type Usernames = ArrayVec<String, 2>;
 #[derive(Default, Debug)]
 pub struct TimeSpent {
     pub nb_games: usize,
-    /// in seconds
     pub time_spent_exact: Duration,
     ///  in seconds
     /// computed with formula  (clock initial time in seconds) + 40 × (clock increment)
