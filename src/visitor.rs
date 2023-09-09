@@ -96,7 +96,7 @@ impl TimeSpent {
                 self.time_spent_exact.as_secs()
             )
         } else {
-            write!(w, ",,,")
+            write!(w, ",,,,")
         }
     }
 }
