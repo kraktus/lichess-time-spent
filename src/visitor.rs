@@ -252,7 +252,8 @@ impl Visitor for PgnVisitor {
                     .users
                     .remove(&username)
                     .unwrap_or_else(TimeSpents::default);
-                time_spents.add_game(exact_duration, avg_time)
+                time_spents.add_game(exact_duration, avg_time);
+                self.users.insert(username, time_spents);
             }
         }
     }
