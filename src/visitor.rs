@@ -29,7 +29,8 @@ impl TimeSpent {
 
     fn to_csv(&self, w: &mut impl Write) -> io::Result<()> {
         // nb_game, average, accurate
-        if self.nb_games > 0 {
+        if self.nb_games > 0 && !self.time_spent_exact.is_zero() && self.time_spent_approximate > 0
+        {
             write!(
                 w,
                 ",{},{},{}",
@@ -244,16 +245,19 @@ impl Visitor for PgnVisitor {
 
     fn end_game(&mut self) -> Self::Result {
         let finished_game = mem::take(&mut self.game);
+        let plies = finished_game.plies;
         let avg_time = finished_game.tc.average_time();
         let (usernames, exact_duration_opt) = finished_game.game_duration();
-        if let Some(exact_duration) = exact_duration_opt {
-            for username in usernames.into_iter() {
-                let mut time_spents = self
-                    .users
-                    .remove(&username)
-                    .unwrap_or_else(TimeSpents::default);
-                time_spents.add_game(exact_duration, avg_time);
-                self.users.insert(username, time_spents);
+        if plies >= 4 {
+            if let Some(exact_duration) = exact_duration_opt {
+                for username in usernames.into_iter() {
+                    let mut time_spents = self
+                        .users
+                        .remove(&username)
+                        .unwrap_or_else(TimeSpents::default);
+                    time_spents.add_game(exact_duration, avg_time);
+                    self.users.insert(username, time_spents);
+                }
             }
         }
     }
