@@ -89,7 +89,7 @@ impl TimeSpents {
         }
     }
 
-    fn to_csv(&self, w: &mut impl Write) -> io::Result<()> {
+    pub fn to_csv(&self, w: &mut impl Write) -> io::Result<()> {
         self.ultrabullet.to_csv(w)?;
         write!(w, ",")?;
         self.bullet.to_csv(w)?;
