@@ -1,36 +1,13 @@
 use std::{
-    format,
     io::{self, Write},
     mem,
-    ops::Add,
     time::Duration,
-    unimplemented,
 };
 
-use arrayvec::{ArrayString, ArrayVec};
+use arrayvec::ArrayVec;
 use indicatif::ProgressBar;
 use pgn_reader::{RawComment, RawHeader, SanPlus, Skip, Visitor};
 use rustc_hash::FxHashMap;
-
-// Small string. capped by max username length, 30.
-//type SString = ArrayString<30>;
-
-// #[derive(Default, Debug, PartialEq, Eq, Hash)]
-// struct Duration(u64);
-
-// impl Duration {
-//     fn from_secs(x: u64) -> Self {
-//         Self(x)
-//     }
-// }
-
-// impl Add for Duration {
-//     type Output = Self;
-
-//     fn add(self, rhs: Self) -> Self::Output {
-//         Self(self.0 + rhs.0)
-//     }
-// }
 
 type Usernames = ArrayVec<String, 2>;
 
@@ -104,7 +81,7 @@ impl TimeSpents {
 pub struct PgnVisitor {
     pub games: usize,
     pub users: FxHashMap<String, TimeSpents>,
-    pb: ProgressBar,
+    pub pb: ProgressBar,
     game: Game, // storing temporary variable
 }
 
