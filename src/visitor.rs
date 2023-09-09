@@ -1,6 +1,8 @@
 use std::{
+    borrow::Cow,
     io::{self, Write},
     mem,
+    ops::AddAssign,
     time::Duration,
 };
 
@@ -9,11 +11,59 @@ use indicatif::ProgressBar;
 use pgn_reader::{RawComment, RawHeader, SanPlus, Skip, Visitor};
 use rustc_hash::FxHashMap;
 
-type Usernames = ArrayVec<String, 2>;
+#[derive(Default, Debug, Clone)]
+pub struct Rating(usize);
+
+impl AddAssign for Rating {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+struct Player {
+    username: String,
+    rating: Rating,
+}
+
+impl Player {
+    fn to_tuple(self) -> (String, Rating) {
+        (self.username, self.rating)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+struct Players {
+    white: Player,
+    black: Player,
+}
+
+impl Players {
+    fn add_name(&mut self, key: &[u8], value: String) {
+        if key == b"White" {
+            self.white.username = value
+        } else {
+            self.black.username = value
+        }
+    }
+
+    fn into_iter(self) -> [(String, Rating); 2] {
+        [self.white.to_tuple(), self.black.to_tuple()]
+    }
+
+    fn add_rating(&mut self, key: &[u8], value: String) {
+        if key == b"WhiteElo" {
+            self.white.rating = Rating(value.parse().unwrap())
+        } else {
+            self.black.rating = Rating(value.parse().unwrap())
+        }
+    }
+}
 
 #[derive(Default, Debug)]
 pub struct TimeSpent {
     pub nb_games: usize,
+    pub total_rating: Rating,
     pub time_spent_exact: Duration,
     ///  in seconds
     /// computed with formula  (clock initial time in seconds) + 40 × (clock increment)
@@ -21,8 +71,14 @@ pub struct TimeSpent {
 }
 
 impl TimeSpent {
-    fn add_game(&mut self, game_exact_duration: Duration, game_approximate_duration: usize) {
+    fn add_game(
+        &mut self,
+        game_exact_duration: Duration,
+        game_approximate_duration: usize,
+        rating: Rating,
+    ) {
         self.nb_games += 1;
+        self.total_rating += rating;
         self.time_spent_exact += game_exact_duration;
         self.time_spent_approximate += game_approximate_duration;
     }
@@ -33,8 +89,9 @@ impl TimeSpent {
         {
             write!(
                 w,
-                ",{},{},{}",
+                ",{},{},{},{}",
                 self.nb_games,
+                self.total_rating.0 / self.nb_games,
                 self.time_spent_approximate,
                 self.time_spent_exact.as_secs()
             )
@@ -54,18 +111,20 @@ pub struct TimeSpents {
 }
 
 impl TimeSpents {
-    fn add_game(&mut self, game_exact_duration: Duration, avg_time: usize) {
+    fn add_game(&mut self, game_exact_duration: Duration, avg_time: usize, rating: Rating) {
         // https://lichess.org/faq#time-controls
         if avg_time <= 29 {
-            self.ultrabullet.add_game(game_exact_duration, avg_time)
+            self.ultrabullet
+                .add_game(game_exact_duration, avg_time, rating)
         } else if avg_time <= 179 {
-            self.bullet.add_game(game_exact_duration, avg_time)
+            self.bullet.add_game(game_exact_duration, avg_time, rating)
         } else if avg_time <= 479 {
-            self.blitz.add_game(game_exact_duration, avg_time)
+            self.blitz.add_game(game_exact_duration, avg_time, rating)
         } else if avg_time <= 1499 {
-            self.rapid.add_game(game_exact_duration, avg_time)
+            self.rapid.add_game(game_exact_duration, avg_time, rating)
         } else {
-            self.classical.add_game(game_exact_duration, avg_time)
+            self.classical
+                .add_game(game_exact_duration, avg_time, rating)
         }
     }
 
@@ -119,7 +178,7 @@ impl Tc {
 
 #[derive(Default, Debug, Clone)]
 struct Game {
-    usernames: Usernames,
+    players: Players,
     plies: u64,
     link: String, // for debugging purpose
     // needed in case of berserk
@@ -152,10 +211,10 @@ impl Game {
 
     // The use of the +15s button can break the game duration calculation
     // then the game is skipped
-    fn game_duration(self) -> (Usernames, Option<Duration>) {
+    fn game_duration(self) -> (Players, Option<Duration>) {
         // base time - finish time + increment * nb_plies
         (
-            self.usernames,
+            self.players,
             (self.first_two_clocks.into_iter().sum::<Duration>()
                 + Duration::from_secs(self.plies * self.tc.increment))
             .checked_sub(
@@ -192,6 +251,12 @@ fn comment_to_duration(comment: &str) -> Option<Duration> {
     Some(Duration::from_secs(h * 3600 + m * 60 + s))
 }
 
+fn decode<'a>(value: RawHeader<'a>, field: &str, g: &Game) -> Cow<'a, str> {
+    value
+        .decode_utf8()
+        .unwrap_or_else(|e| panic!("Error {e} decoding {field} at game: {g:?}"))
+}
+
 impl Visitor for PgnVisitor {
     type Result = ();
 
@@ -204,27 +269,20 @@ impl Visitor for PgnVisitor {
 
     fn header(&mut self, key: &[u8], value: RawHeader<'_>) {
         if key == b"White" || key == b"Black" {
-            let username = value
-                .decode_utf8()
-                .unwrap_or_else(|e| {
-                    panic!("Error {} decoding username at game: {:?}", e, self.game)
-                })
-                .to_string();
-            self.game.usernames.push(username)
+            let username = decode(value, "username", &self.game).to_string();
+            self.game.players.add_name(key, username);
+        } else if key == b"WhiteElo" || key == b"BlackElo" {
+            let rating = decode(value, "rating", &self.game).to_string();
+            self.game.players.add_rating(key, rating);
         } else if key == b"TimeControl" {
-            let tc = value
-                .decode_utf8()
-                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {:?}", e, self.game));
+            let tc = decode(value, "tc", &self.game);
             if tc != "-" {
                 self.game.tc = tc_to_tuple(&tc).unwrap_or_else(|| {
                     panic!("could not convert tc {tc:?} at game {:?}", self.game)
                 })
             }
         } else if key == b"Site" {
-            self.game.link = value
-                .decode_utf8()
-                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {:?}", e, self.game))
-                .to_string();
+            self.game.link = decode(value, "link", &self.game).to_string();
         }
     }
     fn san(&mut self, _: SanPlus) {
@@ -247,15 +305,15 @@ impl Visitor for PgnVisitor {
         let finished_game = mem::take(&mut self.game);
         let plies = finished_game.plies;
         let avg_time = finished_game.tc.average_time();
-        let (usernames, exact_duration_opt) = finished_game.game_duration();
+        let (players, exact_duration_opt) = finished_game.game_duration();
         if plies >= 4 {
             if let Some(exact_duration) = exact_duration_opt {
-                for username in usernames.into_iter() {
+                for (username, rating) in players.into_iter() {
                     let mut time_spents = self
                         .users
                         .remove(&username)
                         .unwrap_or_else(TimeSpents::default);
-                    time_spents.add_game(exact_duration, avg_time);
+                    time_spents.add_game(exact_duration, avg_time, rating);
                     self.users.insert(username, time_spents);
                 }
             }

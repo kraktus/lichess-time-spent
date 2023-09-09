@@ -55,7 +55,10 @@ fn main() -> io::Result<()> {
     let mut w = BufWriter::new(file);
     write!(w, "username")?;
     for perf in ["ultrabullet", "bullet", "blitz", "rapid", "classical"] {
-        write!(w, ",{perf}_games,{perf}_approximate_time,{perf}_real_time")?;
+        write!(
+            w,
+            ",{perf}_games,{perf}_avg_rating,{perf}_approximate_time,{perf}_real_time"
+        )?;
     }
     writeln!(w)?;
     for (username, time_spents) in visitor.users.into_iter() {
