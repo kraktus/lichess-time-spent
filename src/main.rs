@@ -45,6 +45,7 @@ fn main() {
 
     let mut visitor = visitor::PgnVisitor::new(get_progress_bar(nb_games));
     reader.read_all(&mut visitor).expect("Valid pgn file");
+    visitor.pb.finish();
     // let mut usernames_vec: Vec<(String, usize)> = visitor.usernames.into_iter().collect();
     // usernames_vec.sort();
     // let usernames_vec: Vec<String> = usernames_vec

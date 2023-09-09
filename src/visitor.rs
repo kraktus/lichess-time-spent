@@ -3,6 +3,7 @@ use std::{
     io::{self, Write},
     mem,
     ops::Add,
+    str::FromStr,
     time::Duration,
     unimplemented,
 };
@@ -13,7 +14,7 @@ use pgn_reader::{RawComment, RawHeader, SanPlus, Skip, Visitor};
 use rustc_hash::FxHashMap;
 
 // Small string. capped by max username length, 30.
-//type SString = ArrayString<30>;
+type SString = ArrayString<50>;
 
 // #[derive(Default, Debug, PartialEq, Eq, Hash)]
 // struct Duration(u64);
@@ -32,7 +33,7 @@ use rustc_hash::FxHashMap;
 //     }
 // }
 
-type Usernames = ArrayVec<String, 2>;
+type Usernames = ArrayVec<SString, 2>;
 
 #[derive(Default, Debug)]
 pub struct TimeSpent {
@@ -103,9 +104,9 @@ impl TimeSpents {
 
 pub struct PgnVisitor {
     pub games: usize,
-    pub users: FxHashMap<String, TimeSpents>,
-    pb: ProgressBar,
-    game: Game, // storing temporary variable
+    pub users: FxHashMap<SString, TimeSpents>,
+    pub pb: ProgressBar,
+    game: Game, // storing temporary variables
 }
 
 impl PgnVisitor {
@@ -143,17 +144,17 @@ impl Tc {
 struct Game {
     usernames: Usernames,
     plies: u64,
-    link: String, // for debugging purpose
+    link: SString, // for debugging purpose
     // needed in case of berserk
     first_two_clocks: ArrayVec<Duration, 2>,
     // sliding of the last two clock
-    last_two_comments: ArrayVec<String, 2>,
+    last_two_comments: ArrayVec<SString, 2>,
     // the initial time, in seconds, with the increment, in seconds
     tc: Tc,
 }
 
 impl Game {
-    fn acc_comment(&mut self, comment: String) {
+    fn add_comment(&mut self, comment: SString) {
         // first if there's still room we add to the first two clocks
         if !self.first_two_clocks.is_full() {
             self.first_two_clocks.push(
@@ -226,12 +227,9 @@ impl Visitor for PgnVisitor {
 
     fn header(&mut self, key: &[u8], value: RawHeader<'_>) {
         if key == b"White" || key == b"Black" {
-            let username = value
-                .decode_utf8()
-                .unwrap_or_else(|e| {
-                    panic!("Error {} decoding username at game: {:?}", e, self.game)
-                })
-                .to_string();
+            let username = SString::from(&value.decode_utf8_lossy()).unwrap_or_else(|e| {
+                panic!("Error {} decoding username at game: {:?}", e, self.game)
+            });
             self.game.usernames.push(username)
         } else if key == b"TimeControl" {
             let tc = value
@@ -243,10 +241,8 @@ impl Visitor for PgnVisitor {
                 })
             }
         } else if key == b"Site" {
-            self.game.link = value
-                .decode_utf8()
-                .unwrap_or_else(|e| panic!("Error {} decoding tc at game: {:?}", e, self.game))
-                .to_string();
+            self.game.link = SString::from(&value.decode_utf8_lossy())
+                .unwrap_or_else(|e| panic!("Error {} decoding link at game: {:?}", e, self.game))
         }
     }
     fn san(&mut self, _: SanPlus) {
@@ -254,8 +250,10 @@ impl Visitor for PgnVisitor {
     }
 
     fn comment(&mut self, c: RawComment<'_>) {
-        self.game
-            .acc_comment(String::from_utf8_lossy(c.as_bytes()).to_string())
+        self.game.add_comment(
+            SString::from_str(&String::from_utf8_lossy(c.as_bytes()))
+                .unwrap_or_else(|e| panic!("Error {} decoding link at game: {:?}", e, self.game)),
+        )
     }
     fn begin_variation(&mut self) -> Skip {
         Skip(true)
@@ -312,27 +310,40 @@ mod tests {
         let mut g = Game::default();
         g.first_two_clocks.push(Duration::from_secs(60));
         g.first_two_clocks.push(Duration::from_secs(60));
-        g.last_two_comments.push("[%clk 0:01:00]".to_string());
-        g.last_two_comments.push("[%clk 0:01:00]".to_string());
+        g.last_two_comments.push(
+            SString::from_byte_string(b"[%clk 0:01:00]                                    ")
+                .unwrap(),
+        );
+        g.last_two_comments.push(
+            SString::from_byte_string(b"[%clk 0:01:00]                                    ")
+                .unwrap(),
+        );
         g.tc = Tc::new((60, 2));
         g.plies = 2;
         let (_, d) = g.game_duration();
-        assert_eq!(d, Duration::from_secs(4))
+        assert_eq!(d.unwrap(), Duration::from_secs(4))
     }
 
     #[test]
     fn test_sliding_window_clock() {
+        let ss_2 = SString::from_byte_string(b"[%clk 0:00:02]                                    ")
+            .unwrap();
+        let ss_3 = SString::from_byte_string(b"[%clk 0:00:03]                                    ")
+            .unwrap();
         let mut game = Game::default();
-        game.acc_comment("[%clk 0:00:01]".to_string());
-        game.acc_comment("[%clk 0:00:02]".to_string());
-        game.acc_comment("[%clk 0:00:03]".to_string());
+        game.add_comment(
+            SString::from_byte_string(b"[%clk 0:00:01]                                    ")
+                .unwrap(),
+        );
+        game.add_comment(ss_2.clone());
+        game.add_comment(ss_3.clone());
         assert_eq!(
             game.first_two_clocks.into_inner().unwrap(),
             [Duration::from_secs(1), Duration::from_secs(2)]
         );
         assert_eq!(
             game.last_two_comments.into_inner().unwrap(),
-            ["[%clk 0:00:02]".to_string(), "[%clk 0:00:03]".to_string()]
+            [ss_2.clone(), ss_3.clone()]
         );
     }
 }
