@@ -30,13 +30,17 @@ impl TimeSpent {
 
     fn to_csv(&self, w: &mut impl Write) -> io::Result<()> {
         // nb_game, average, accurate
-        write!(
-            w,
-            "{},{},{}",
-            self.nb_games,
-            self.time_spent_approximate,
-            self.time_spent_exact.as_secs()
-        )
+        if self.nb_games > 0 {
+            write!(
+                w,
+                ",{},{},{}",
+                self.nb_games,
+                self.time_spent_approximate,
+                self.time_spent_exact.as_secs()
+            )
+        } else {
+            write!(w, ",,,")
+        }
     }
 }
 
@@ -65,15 +69,12 @@ impl TimeSpents {
         }
     }
 
+    // start with a leadinb colon, so need to be predecessed by `username`
     pub fn to_csv(&self, w: &mut impl Write) -> io::Result<()> {
         self.ultrabullet.to_csv(w)?;
-        write!(w, ",")?;
         self.bullet.to_csv(w)?;
-        write!(w, ",")?;
         self.blitz.to_csv(w)?;
-        write!(w, ",")?;
         self.rapid.to_csv(w)?;
-        write!(w, ",")?;
         self.classical.to_csv(w)
     }
 }
@@ -295,7 +296,7 @@ mod tests {
         g.tc = Tc::new((60, 2));
         g.plies = 2;
         let (_, d) = g.game_duration();
-        assert_eq!(d, Duration::from_secs(4))
+        assert_eq!(d.unwrap(), Duration::from_secs(4))
     }
 
     #[test]

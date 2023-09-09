@@ -53,13 +53,13 @@ fn main() -> io::Result<()> {
     visitor.pb.finish();
     let file = File::create("time-spent.csv")?;
     let mut w = BufWriter::new(file);
-    write!(w, "username,")?;
+    write!(w, "username")?;
     for perf in ["ultrabullet", "bullet", "blitz", "rapid", "classical"] {
-        write!(w, "{perf}_games,{perf}_approximate_time,{perf}_real_time,")?;
+        write!(w, ",{perf}_games,{perf}_approximate_time,{perf}_real_time")?;
     }
     writeln!(w)?;
     for (username, time_spents) in visitor.users.into_iter() {
-        write!(w, "{username},")?;
+        write!(w, "{username}")?;
         time_spents.to_csv(&mut w)?;
         writeln!(w)?;
     }
