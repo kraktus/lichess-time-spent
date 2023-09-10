@@ -3,6 +3,7 @@ use std::{
     io::{self, Write},
     mem,
     ops::AddAssign,
+    print,
     time::Duration,
 };
 
@@ -24,11 +25,12 @@ impl AddAssign for Rating {
 struct Player {
     username: String,
     rating: Rating,
+    is_bot: bool,
 }
 
 impl Player {
-    fn to_tuple(self) -> (String, Rating) {
-        (self.username, self.rating)
+    fn to_tuple(self) -> (String, Rating, bool) {
+        (self.username, self.rating, self.is_bot)
     }
 }
 
@@ -47,7 +49,7 @@ impl Players {
         }
     }
 
-    fn into_iter(self) -> [(String, Rating); 2] {
+    fn into_iter(self) -> [(String, Rating, bool); 2] {
         [self.white.to_tuple(), self.black.to_tuple()]
     }
 
@@ -56,6 +58,14 @@ impl Players {
             self.white.rating = Rating(value.parse().unwrap())
         } else {
             self.black.rating = Rating(value.parse().unwrap())
+        }
+    }
+
+    fn add_bot(&mut self, key: &[u8], value: &str) {
+        if key == b"WhiteTitle" {
+            self.white.is_bot = value == "BOT"
+        } else {
+            self.black.is_bot = value == "BOT"
         }
     }
 }
@@ -190,6 +200,11 @@ struct Game {
 }
 
 impl Game {
+    fn should_skip(&self) -> bool {
+        // avoiding games without clocks
+        self.tc == Tc::default()
+    }
+
     fn acc_comment(&mut self, comment: String) {
         // first if there's still room we add to the first two clocks
         if !self.first_two_clocks.is_full() {
@@ -257,6 +272,23 @@ fn decode<'a>(value: RawHeader<'a>, field: &str, g: &Game) -> Cow<'a, str> {
         .unwrap_or_else(|e| panic!("Error {e} decoding {field} at game: {g:?}"))
 }
 
+impl PgnVisitor {
+    fn record_game(
+        &mut self,
+        username: String,
+        rating: Rating,
+        exact_duration: Duration,
+        avg_time: usize,
+    ) {
+        let mut time_spents = self
+            .users
+            .remove(&username)
+            .unwrap_or_else(TimeSpents::default);
+        time_spents.add_game(exact_duration, avg_time, rating);
+        self.users.insert(username, time_spents);
+    }
+}
+
 impl Visitor for PgnVisitor {
     type Result = ();
 
@@ -283,6 +315,9 @@ impl Visitor for PgnVisitor {
             }
         } else if key == b"Site" {
             self.game.link = decode(value, "link", &self.game).to_string();
+        } else if key == b"WhiteTitle" || key == b"BlackTitle" {
+            let bot = decode(value, "bot", &self.game);
+            self.game.players.add_bot(key, &bot);
         }
     }
     fn san(&mut self, _: SanPlus) {
@@ -298,7 +333,7 @@ impl Visitor for PgnVisitor {
     }
     fn end_headers(&mut self) -> Skip {
         // avoiding games without clocks
-        Skip(self.game.tc == Tc::default())
+        Skip(self.game.should_skip())
     }
 
     fn end_game(&mut self) -> Self::Result {
@@ -308,13 +343,10 @@ impl Visitor for PgnVisitor {
         let (players, exact_duration_opt) = finished_game.game_duration();
         if plies >= 4 {
             if let Some(exact_duration) = exact_duration_opt {
-                for (username, rating) in players.into_iter() {
-                    let mut time_spents = self
-                        .users
-                        .remove(&username)
-                        .unwrap_or_else(TimeSpents::default);
-                    time_spents.add_game(exact_duration, avg_time, rating);
-                    self.users.insert(username, time_spents);
+                for (username, rating, is_bot) in players.into_iter() {
+                    if !is_bot {
+                        self.record_game(username, rating, exact_duration, avg_time)
+                    }
                 }
             }
         }
