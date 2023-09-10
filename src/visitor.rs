@@ -3,7 +3,6 @@ use std::{
     io::{self, Write},
     mem,
     ops::AddAssign,
-    print,
     time::Duration,
 };
 
