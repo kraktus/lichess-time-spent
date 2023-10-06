@@ -227,6 +227,8 @@ impl Game {
     // then the game is skipped
     fn game_duration(self) -> (Players, Option<Duration>) {
         // base time - finish time + increment * nb_plies
+        // in the implementation `+ increment * nb_plies` is done first to avoid
+        // negative time (and overflow) in 0+X type of games
         (
             self.players,
             (self.first_two_clocks.into_iter().sum::<Duration>()
