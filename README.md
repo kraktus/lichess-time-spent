@@ -11,3 +11,7 @@ To extract the data, you need a working rust installation: `cargo run --release 
 The results are stored in `time-spent.csv`.
 
 Some data analysis can be found in `data-analysis.ipynb`, you can run them with `jupyter notebook`.
+
+## Proofreading
+
+To produce a PDF file for easier proof-reading: `rm -f data-analysis.pdf && jupyter nbconvert data-analysis.ipynb --no-input --to pdf && open data-analysis.pdf`
