@@ -26,4 +26,4 @@ To produce a PDF file for easier proof-reading:
 
 ### Produce the markdown
 
-`jupyter nbconvert data-analysis.ipynb --to markdown`
+`jupyter nbconvert data-analysis.ipynb --no-input --to markdown`
