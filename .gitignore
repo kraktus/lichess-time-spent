@@ -1,3 +1,4 @@
 /target
+/figures
 *.pgn
 *.py
