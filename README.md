@@ -25,3 +25,5 @@ To produce a PDF file for easier proof-reading:
 `jupyter nbconvert data-analysis.ipynb --to python && python3 -O data-analysis.py`
 
 ### Produce the markdown
+
+`jupyter nbconvert data-analysis.ipynb --to markdown`
