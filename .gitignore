@@ -2,3 +2,5 @@
 /figures
 *.pgn
 *.py
+data-analysis.py
+data-analysis.md

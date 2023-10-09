@@ -1,8 +1,8 @@
 # lichess-time-spent
 
-Extracting time spent playing on Lichess by player
+Extracting time spent playing on Lichess by player, and analysing it
 
-## Usage 
+## Extracting time spent playing 
 
 To extract the data, you need a working rust installation: `cargo run --release -- <PATH_TO_PGN> <NUMBER_OF_GAMES_IN_PGN>`
 
@@ -14,4 +14,14 @@ Some data analysis can be found in `data-analysis.ipynb`, you can run them with 
 
 ## Proofreading
 
-To produce a PDF file for easier proof-reading: `rm -f data-analysis.pdf && jupyter nbconvert data-analysis.ipynb --no-input --to pdf && open data-analysis.pdf`
+To produce a PDF file for easier proof-reading:
+* First make sure to save the document (checkpoint) in jupyter UI
+* Then run `jupyter nbconvert data-analysis.ipynb --no-input --to pdf && open data-analysis.pdf`
+
+## Export
+
+### Produce the figures
+
+`jupyter nbconvert data-analysis.ipynb --to python && python3 -O data-analysis.py`
+
+### Produce the markdown
