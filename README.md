@@ -12,7 +12,8 @@ Then in a terminal:
 
 - Enter the `lichess-time-spent` directory then run: `cargo run --release -- <PATH_TO_PGN> <NUMBER_OF_GAMES_IN_PGN>`
 
-`PATH_TO_PGN` can lead to a compressed file that will be decompressed on the fly. [You can use database.lichess.org to download compressed versions of Lichess rated games](https://database.lichess.org) 
+`PATH_TO_PGN` can lead to a compressed file that will be decompressed on the fly. [You can use database.lichess.org to download compressed versions of Lichess rated games](https://database.lichess.org).
+
 `NUMBER_OF_GAMES_IN_PGN` is just used for the progress bar and compute approximate duration of operation. You can use any number if you don't know or care.
 The results are stored in `time-spent.csv` put in the current directory.
 
